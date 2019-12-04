@@ -26,6 +26,7 @@ dependencies:
 - split
 - primitive
 - containers
+- digits
 
 library:
   source-dirs: src
