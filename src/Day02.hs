@@ -22,7 +22,7 @@ day02a :: IO ()
 day02a = readAndProcessProg ("inputs" </> "day02_input.txt") run
   where
     run prog = do
-        pos0 <- runProg prog [(1, 12), (2, 2)] noinput 0
+        (pos0,_) <- runProg prog [(1, 12), (2, 2)] noinput 0
         print pos0
 
 day02b :: IO ()
@@ -36,6 +36,6 @@ day02b = readAndProcessProg ("inputs" </> "day02_input.txt") run
     exec prog = do
         let vals = [ (noun, verb) | noun <- [0 .. 99], verb <- [0 .. 99] ]
         results <- forM vals $ \(noun, verb) -> do
-            pos0 <- runProg prog [(1, noun), (2, verb)] noinput 0
+            (pos0,_) <- runProg prog [(1, noun), (2, verb)] noinput 0
             return (noun, verb, pos0)
         return $ find (\(_, _, result) -> result == 19690720) results
