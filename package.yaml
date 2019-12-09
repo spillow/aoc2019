@@ -27,6 +27,8 @@ dependencies:
 - primitive
 - containers
 - digits
+- bytestring
+- word8
 
 library:
   source-dirs: src
