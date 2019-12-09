@@ -12,6 +12,7 @@ import           Day05
 import           Day06
 import           Day07
 import           Day08
+import           Day09
 
 dayMap :: M.Map String (IO ())
 dayMap = M.fromList
@@ -31,6 +32,8 @@ dayMap = M.fromList
     , ("day07b", day07b)
     , ("day08a", day08a)
     , ("day08b", day08b)
+    , ("day09a", day09a)
+    , ("day09b", day09b)
     ]
 
 main :: IO ()

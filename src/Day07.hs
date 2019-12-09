@@ -38,9 +38,10 @@ day07b = readAndProcessProg ("inputs" </> "day07_input.txt") run
         let ips = reverse revips
         feedback (zip amps ips) firstResult
       where
+        execInit :: (Int, [IP]) -> (Int, ProgVec) -> IO (Int, [IP])
         execInit (input, ips) (phase, amp) = do
-            ([output], Just ip) <- runProgVec amp 0 True [] [phase, input]
-            return (output, ip : ips)
+            Just state <- execute amp (mkInitState {inputs = [phase, input]})
+            return (output state, ip state : ips)
 
 feedback :: [(ProgVec, IP)] -> Int -> IO Int
 feedback progips initVal = do
@@ -48,11 +49,12 @@ feedback progips initVal = do
     let ips = reverse revips
     case result of
         Nothing  -> return initVal
-        Just val -> feedback (zip (map fst progips) (catMaybes ips)) val
+        Just val -> feedback (zip (map fst progips) ips) val
   where
     execInit (input, ips) (prog, currIP) = case input of
         Just input' -> do
-            (output, newIP) <- runProgVec prog currIP True [] [input']
-            let val = if null output then Nothing else Just $ head output
-            return (val, newIP : ips)
+            maybeState <- execute prog (mkInitState {ip = currIP, inputs = [input']})
+            case maybeState of
+              Nothing -> return (Nothing, [])
+              Just state -> return (Just $ output state, ip state : ips)
         Nothing -> return (Nothing, [])

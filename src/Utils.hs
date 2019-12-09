@@ -22,3 +22,14 @@ initVec xs = do
     mapM_ (insert vec) (zip [0 ..] xs)
     return vec
     where insert vec (i, v) = M.write vec i v
+
+runWhileJust :: (Monad m) => a -> (a -> m (Maybe a)) -> m [a]
+runWhileJust init action = do
+    result <- action init
+    case result of
+        Nothing -> return []
+        Just x  -> do
+            rest <- runWhileJust x action
+            return $ x : rest
+
+

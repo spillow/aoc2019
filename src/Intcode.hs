@@ -9,16 +9,27 @@ import           Data.Digits
 
 type Program = [Int]
 type Inputs = [Int]
-type Outputs = [Int]
+type Output = Int
+type Outputs = [Output]
 type ProgVec = M.MVector (PrimState IO) Int
 type IP = Int
 type Pause = Bool
 
+data IntcodeState = IntcodeState { ip :: IP
+                                 , inputs :: Inputs
+                                 , output :: Output
+                                 , relativeBase :: Int
+                                 } deriving (Show)
+
+mkInitState :: IntcodeState
+mkInitState =
+    IntcodeState { ip = 0, inputs = [], output = 0, relativeBase = 0 }
+
 parseProgram :: String -> Either String Program
 parseProgram s = mapM readEither (splitOn "," s)
 
-execute :: ProgVec -> IP -> Pause -> Inputs -> IO (Outputs, Maybe IP)
-execute vec ipStart pauseOnOut inputs = go ipStart inputs []
+execute :: ProgVec -> IntcodeState -> IO (Maybe IntcodeState)
+execute vec = go
   where
     getParam :: ProgVec -> Int -> Int -> IO Int
     getParam vec loc mode = do
@@ -38,9 +49,7 @@ execute vec ipStart pauseOnOut inputs = go ipStart inputs []
     readInput vec ip (input : restInputs) = do
         writeOut vec (ip + 1) input
         return restInputs
-    dispVal vec ip mode outputs = do
-        x <- getParam vec (ip + 1) mode
-        return $ x : outputs
+    dispVal vec ip = getParam vec (ip + 1)
     jumpIfCond cond vec ip (mode1, mode2) = do
         num   <- getParam vec (ip + 1) mode1
         newIP <- getParam vec (ip + 2) mode2
@@ -50,55 +59,51 @@ execute vec ipStart pauseOnOut inputs = go ipStart inputs []
         y <- getParam vec (ip + 2) mode2
         let val = if cond x y then trueVal else falseVal
         writeOut vec (ip + 3) val
-    go :: Int -> Inputs -> Outputs -> IO (Outputs, Maybe IP)
-    go ip inputs outputs = do
+    go :: IntcodeState -> IO (Maybe IntcodeState)
+    go state@IntcodeState { ip = ip, inputs = inputs } = do
         currNum <- M.read vec ip
         let m1 : m2 : _ = drop 2 (reverse $ digits 10 currNum) ++ repeat 0
         let opcode      = currNum `mod` 100
         case opcode of
-            1  -> procOp vec (+) ip (m1, m2) >> go' (ip + 4)
-            2  -> procOp vec (*) ip (m1, m2) >> go' (ip + 4)
-            3  -> readInput vec ip inputs >>= goIn (ip + 2)
-            4  -> dispVal vec ip m1 outputs >>= handleOut
+            1 -> procOp vec (+) ip (m1, m2) >> go state { ip = ip + 4 }
+            2 -> procOp vec (*) ip (m1, m2) >> go state { ip = ip + 4 }
+            3 ->
+                readInput vec ip inputs
+                    >>= (\x -> go state { ip = ip + 2, inputs = x })
+            4 -> dispVal vec ip m1 >>= handleOut
             -- jump-if-true x y => (x != 0) ? ip=y : ip+3
-            5  -> jumpIfCond (/= 0) vec ip (m1, m2) >>= go'
+            5 ->
+                jumpIfCond (/= 0) vec ip (m1, m2)
+                    >>= (\x -> go $ state { ip = x })
             -- jump-if-false x y => (x == 0) ? ip=y : ip+3
-            6  -> jumpIfCond (== 0) vec ip (m1, m2) >>= go'
+            6 ->
+                jumpIfCond (== 0) vec ip (m1, m2)
+                    >>= (\x -> go $ state { ip = x })
             -- less than x y z => (x < y) ? z=1 : z=0
-            7  -> checkCond (<) 1 0 vec ip (m1, m2) >> go' (ip + 4)
+            7  -> checkCond (<) 1 0 vec ip (m1, m2) >> go state { ip = ip + 4 }
             -- equals x y z => (x == y) ? z=1 : z=0
-            8  -> checkCond (==) 1 0 vec ip (m1, m2) >> go' (ip + 4)
+            8  -> checkCond (==) 1 0 vec ip (m1, m2) >> go state { ip = ip + 4 }
             -- halt
-            99 -> return (reverse outputs, Nothing)
+            99 -> return Nothing
             _  -> error $ "unknown opcode!: " ++ show opcode
-      where
-        go' ip = go ip inputs outputs
-        goIn ip ins = go ip ins outputs
-        goOut ip = go ip inputs
-        handleOut outs = if pauseOnOut
-            then return (outs, Just $ ip + 2)
-            else go (ip + 2) inputs outs
+        where handleOut out = return $ Just state { ip = ip + 2, output = out }
 
 -- given a program and a collection of initialization values
 -- e.g., [(1,12),(2,2)] would do vec[1] = 12, vec[2] = 2,
 -- return the value of address 'retAddr' at program termination
 runProg :: Program -> [(Int, Int)] -> Inputs -> Int -> IO (Int, Outputs)
 runProg prog inits inputs retAddr = do
-    vec          <- initVec prog
-    (outputs, _) <- runProgVec vec 0 False inits inputs
-    val          <- M.read vec retAddr
-    return (val, outputs)
-
-runProgVec
-    :: ProgVec
-    -> IP
-    -> Pause
-    -> [(Int, Int)]
-    -> Inputs
-    -> IO (Outputs, Maybe IP)
-runProgVec vec ip pause inits inputs = do
+    vec <- initVec prog
     initMemLocs vec inits
-    execute vec ip pause inputs
+    states <- runWhileJust (mkInitState { inputs = inputs }) $ execute vec
+    val    <- M.read vec retAddr
+    return (val, [ out | IntcodeState { output = out } <- states ])
+    where initMemLocs vec = mapM_ (uncurry (M.write vec))
+
+runProgVec :: ProgVec -> IntcodeState -> [(Int, Int)] -> IO (Maybe IntcodeState)
+runProgVec vec state inits = do
+    initMemLocs vec inits
+    execute vec state
     where initMemLocs vec = mapM_ (uncurry (M.write vec))
 
 readAndProcessProg :: FilePath -> (Program -> IO ()) -> IO ()

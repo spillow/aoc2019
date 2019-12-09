@@ -46,7 +46,7 @@ getLayers = do
 day08a :: IO ()
 day08a = do
     layers <- getLayers
-    let minLayer        = minimumBy numZeros layers
+    let minLayer = minimumBy numZeros layers
     print minLayer
     print $ B.count _1 minLayer * B.count _2 minLayer
   where
@@ -56,7 +56,7 @@ day08a = do
 day08b :: IO ()
 day08b = do
     layers <- getLayers
-    let width = 25
+    let width     = 25
     let combLayer = render layers
     let img = partitionToLayers combLayer width
     print img
