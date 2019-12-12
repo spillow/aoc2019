@@ -29,6 +29,8 @@ dependencies:
 - digits
 - bytestring
 - word8
+- ghc-prim
+- hashable
 
 library:
   source-dirs: src
@@ -41,6 +43,7 @@ executables:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    - -O2
     dependencies:
     - aoc2019
     - containers
